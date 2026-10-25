@@ -31,6 +31,14 @@ jobs:
         with:
           components: clippy, rustfmt
           targets: wasm32-unknown-unknown
+      - name: Compare untouched baseline Unicode process probe locales
+        run: |
+          git apply --reverse /tmp/candidate.patch
+          pgrep --version
+          env -i HOME="$HOME" PATH="$PATH" cargo test -p artcraft-launcher-native process::tests::running_paths_are_matched_literally -- --exact || echo "Baseline without locale failed; diagnostic only"
+          env -i HOME="$HOME" PATH="$PATH" LANG=C.UTF-8 LC_ALL=C.UTF-8 cargo test -p artcraft-launcher-native process::tests::running_paths_are_matched_literally -- --exact
+          git apply --check /tmp/candidate.patch
+          git apply /tmp/candidate.patch
       - name: Full unchanged gate with no saved account credentials
         run: |
-          env -i HOME="$HOME" PATH="$PATH" CARGO_TERM_COLOR=always RUST_BACKTRACE=1 cargo xtask ci
+          env -i HOME="$HOME" PATH="$PATH" LANG=C.UTF-8 LC_ALL=C.UTF-8 CARGO_TERM_COLOR=always RUST_BACKTRACE=1 cargo xtask ci
