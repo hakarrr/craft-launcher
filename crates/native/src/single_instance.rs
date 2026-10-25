@@ -349,7 +349,9 @@ fn handle_incoming(stream: &mut TcpStream, ours: Option<&Version>, token: Option
 
 /// The new start's side: says hello to whatever holds the port and reads the answer.
 fn ask(addr: SocketAddr, ours: Option<&Version>, token: Option<&str>) -> std::io::Result<Answer> {
-    let Some(ours) = ours else {
+    let Some(ours) = ours.filter(|_| token.is_some_and(|token| !token.is_empty())) else {
+        // Without the shared token, ask only to show the window. A version-only running
+        // reply cannot establish that the primary accepted an authenticated replacement.
         let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(1))?;
         stream.write_all(SHOW)?;
         return Ok(Answer::Defer);
@@ -450,6 +452,15 @@ mod tests {
         let (addr, rx) = primary("0.1.0");
         assert_eq!(ask(addr, Some(&v("0.1.2")), Some(TOK)).ok(), Some(Answer::TakeOver));
         assert_eq!(next(&rx), Request::Replace);
+    }
+
+    #[test]
+    fn a_tokenless_newer_start_does_not_expect_an_authenticated_primary_to_exit() {
+        let (addr, rx) = primary("0.6.0");
+        for token in [None, Some("")] {
+            assert_eq!(ask(addr, Some(&v("0.7.0")), token).unwrap(), Answer::Defer);
+            assert_eq!(next(&rx), Request::Show);
+        }
     }
 
     #[test]
